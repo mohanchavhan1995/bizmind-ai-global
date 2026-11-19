@@ -27,13 +27,21 @@ input,select{width:100%;padding:11px;background:#0b1529;border:1px solid var(--l
  <div id="setupMsg" class="status">Your project URL and publishable key stay in this browser.</div>
 </div>
 <div id="auth" class="panel auth hidden">
- <div class="pill">Secure account access</div><h1 id="authTitle">Create your company account</h1>
- <p class="muted">Use an email address you can access. Email verification may be required by your Supabase settings.</p>
- <label>Email</label><input id="email" type="email" placeholder="you@company.com">
- <label>Password</label><input id="password" type="password" minlength="8" placeholder="At least 8 characters">
- <div class="actions"><button onclick="signUp()">Create account</button><button class="alt" onclick="signIn()">Log in</button></div>
- <div id="authMsg" class="status">Your account is managed by your Supabase project.</div>
+ <div class="pill">Secure account access</div><h1 id="authTitle">BIZMIND AI Login</h1>
+ <p class="muted">Sign in to your company workspace using your registered email and password.</p>
+ <label>Email</label><input id="email" type="email" placeholder="you@company.com" autocomplete="username">
+ <label>Password</label><input id="password" type="password" minlength="8" placeholder="Enter your password" autocomplete="current-password">
+ <div class="actions"><button onclick="signIn()">Login to Dashboard</button><button class="alt" onclick="signUp()">Create Account</button><button class="alt" onclick="sendPasswordReset()">Forgot Password?</button></div>
+ <div id="authMsg" class="status">Forgot password? Select the option above. We will send a secure reset link to your email.</div>
  <button class="alt" onclick="changeConfig()">Change project settings</button>
+</div>
+<div id="recovery" class="panel auth hidden">
+ <div class="pill">Password recovery</div><h1>Set a New Password</h1>
+ <p class="muted">Enter your new password. Use at least 8 characters.</p>
+ <label>New Password</label><input id="newPassword" type="password" minlength="8" placeholder="Enter new password" autocomplete="new-password">
+ <label>Confirm New Password</label><input id="confirmPassword" type="password" minlength="8" placeholder="Confirm new password" autocomplete="new-password">
+ <div class="actions"><button onclick="updatePassword()">Save New Password</button><button class="alt" onclick="show('auth')">Back to Login</button></div>
+ <div id="recoveryMsg" class="status">Use the secure link sent to your registered email.</div>
 </div>
 <div id="waitingAccess" class="panel auth hidden"><h1>Waiting for company access</h1><p class="muted">Your account is created. Ask your company Boss to add this email as HR or Staff in the company_members table, then sign in again.</p><button class="alt" onclick="signOut()">Sign out</button></div>
 <div id="companySetup" class="panel auth hidden">
@@ -71,7 +79,7 @@ input,select{width:100%;padding:11px;background:#0b1529;border:1px solid var(--l
 let client=null,user=null,company=null,transactions=[],tasks=[],inventory=[],members=[],workOrders=[],notifications=[],myRole="boss";
 const $=id=>document.getElementById(id);
 function msg(id,text,kind=''){let e=$(id);e.textContent=text;e.className='status '+kind}
-function show(id){['setup','auth','companySetup','app'].forEach(x=>$(x).classList.add('hidden'));$(id).classList.remove('hidden')}
+function show(id){['setup','auth','recovery','companySetup','app','waitingAccess'].forEach(x=>$(x).classList.add('hidden'));$(id).classList.remove('hidden')}
 function toast(t){$('toast').textContent=t;$('toast').style.display='block';setTimeout(()=>$('toast').style.display='none',2400)}
 function config(){return {url:localStorage.getItem('bm_url'),key:localStorage.getItem('bm_key')}}
 function loadSavedConfig(){let c=config();$('projectUrl').value=c.url||'';$('publishKey').value=c.key||'';msg('setupMsg',c.url?'Saved settings loaded.':'No saved settings found.')}
@@ -80,6 +88,8 @@ function changeConfig(){show('setup');loadSavedConfig()}
 async function checkSession(){let {data,error}=await client.auth.getSession();if(error)throw error;if(data.session){user=data.session.user;await loadWorkspace()}else show('auth')}
 async function signUp(){try{let {data,error}=await client.auth.signUp({email:$('email').value.trim(),password:$('password').value});if(error)throw error;msg('authMsg',data.session?'Account created. Signing you in…':'Account request sent. Check your email for verification, then log in.','ok');if(data.session){user=data.session.user;await loadWorkspace()}}catch(e){msg('authMsg',e.message,'err')}}
 async function signIn(){try{let {data,error}=await client.auth.signInWithPassword({email:$('email').value.trim(),password:$('password').value});if(error)throw error;user=data.user;await loadWorkspace()}catch(e){msg('authMsg',e.message,'err')}}
+async function sendPasswordReset(){try{if(!client)throw Error('Project is not connected.');const email=$('email').value.trim();if(!email)throw Error('Enter your registered email address first.');const redirectTo=window.location.origin+window.location.pathname;const {error}=await client.auth.resetPasswordForEmail(email,{redirectTo});if(error)throw error;msg('authMsg','Password reset link sent. Check your email inbox and spam folder.','ok')}catch(e){msg('authMsg',e.message,'err')}}
+async function updatePassword(){try{const p=$('newPassword').value, c=$('confirmPassword').value;if(p.length<8)throw Error('Password must be at least 8 characters.');if(p!==c)throw Error('Passwords do not match.');const {error}=await client.auth.updateUser({password:p});if(error)throw error;msg('recoveryMsg','Password updated successfully. You can now log in with your new password.','ok');$('newPassword').value='';$('confirmPassword').value='';setTimeout(()=>show('auth'),1800)}catch(e){msg('recoveryMsg',e.message,'err')}}
 async function signOut(){if(client)await client.auth.signOut();user=null;company=null;show('auth')}
 async function loadWorkspace(){try{let {data:owned,error:ownerErr}=await client.from('companies').select('*').eq('owner_id',user.id).limit(1);if(ownerErr)throw ownerErr;if(owned.length){company=owned[0];myRole='boss'}else{let {data:membership,error:memberErr}=await client.from('company_members').select('company_id,role').eq('user_id',user.id).limit(1);if(memberErr)throw memberErr;if(!membership.length){show('waitingAccess');return}myRole=membership[0].role;let {data:co,error:coErr}=await client.from('companies').select('*').eq('id',membership[0].company_id).single();if(coErr)throw coErr;company=co} $('companyLabel').textContent=company.company_name;$('userLabel').textContent=(user.email||'')+' · '+String(myRole||'member').toUpperCase();$('settingsCompany').textContent=company.company_name;$('settingsCurrency').textContent=company.currency;show('app');await refreshAll()}catch(e){show('auth');msg('authMsg','Workspace loading failed: '+e.message,'err')}}
 async function createCompany(){try{let name=$('newCompany').value.trim();if(!name)throw Error('Enter a company name');let {data,error}=await client.from('companies').insert({owner_id:user.id,company_name:name,country:$('newCountry').value.trim()||'India',currency:$('newCurrency').value}).select().single();if(error)throw error;company=data;await loadWorkspace()}catch(e){msg('companyMsg',e.message,'err')}}
@@ -169,6 +179,6 @@ async function runCommand(){
 }
 function tab(id,btn){document.querySelectorAll('.page').forEach(x=>x.classList.add('hidden'));$(id).classList.remove('hidden');document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));if(btn)btn.classList.add('active')}
 $('txDate').value=new Date().toISOString().slice(0,10);
-(async function init(){let c=config();if(c.url&&c.key&&window.supabase){$('projectUrl').value=c.url;$('publishKey').value=c.key;client=window.supabase.createClient(c.url,c.key);$('topStatus').textContent='Saved project settings found';try{await checkSession()}catch(e){show('setup');msg('setupMsg','Connection error: '+e.message,'err')}}else show('setup')})();
+(async function init(){let c=config();if(c.url&&c.key&&window.supabase){$('projectUrl').value=c.url;$('publishKey').value=c.key;client=window.supabase.createClient(c.url,c.key);$('topStatus').textContent='Saved project settings found';try{const hash=new URLSearchParams(window.location.hash.replace(/^#/,' '));const query=new URLSearchParams(window.location.search);await checkSession();if(hash.get('type')==='recovery'||query.get('type')==='recovery'){show('recovery');msg('recoveryMsg','Enter and confirm your new password.','ok')}}catch(e){show('setup');msg('setupMsg','Connection error: '+e.message,'err')}}else show('setup')})();
 </script>
 </body></html>
