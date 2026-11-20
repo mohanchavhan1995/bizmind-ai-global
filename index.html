@@ -43,7 +43,7 @@ input,select{width:100%;padding:11px;background:#0b1529;border:1px solid var(--l
  <div class="actions"><button onclick="updatePassword()">Save New Password</button><button class="alt" onclick="show('auth')">Back to Login</button></div>
  <div id="recoveryMsg" class="status">Use the secure link sent to your registered email.</div>
 </div>
-<div id="waitingAccess" class="panel auth hidden"><h1>Waiting for company access</h1><p class="muted">Your account is created. Ask your company Boss to add this email as HR or Staff in the company_members table, then sign in again.</p><button class="alt" onclick="signOut()">Sign out</button></div>
+<div id="waitingAccess" class="panel auth hidden"><h1>Waiting for company access</h1><p class="muted">Your account is created. Ask your company Boss to create your Employee ID and assign your role in BIZMIND AI, then sign in again.</p><button class="alt" onclick="signOut()">Sign out</button></div>
 <div id="companySetup" class="panel auth hidden">
  <h1>Set up your company</h1><p class="muted">Create the first company workspace linked to your signed-in account.</p>
  <label>Company name</label><input id="newCompany" placeholder="Example Global Ltd">
@@ -52,7 +52,7 @@ input,select{width:100%;padding:11px;background:#0b1529;border:1px solid var(--l
 </div>
 <div id="app" class="hidden">
  <div class="top panel"><div><div class="muted tiny">ACTIVE WORKSPACE</div><strong id="companyLabel">Company</strong><div class="muted tiny" id="userLabel"></div></div><div class="nav"><button class="alt" onclick="refreshAll()">Refresh</button><button class="alt" onclick="signOut()">Sign out</button></div></div>
- <div class="tabs"><button class="active" data-tab="overview" onclick="tab('overview',this)">Overview</button><button data-tab="finance" onclick="tab('finance',this)">Sales & Expenses</button><button data-tab="tasks" onclick="tab('tasks',this)">Tasks</button><button data-tab="workorders" onclick="tab('workorders',this)">Work Orders</button><button data-tab="notifications" onclick="tab('notifications',this)">Notifications <span id="notifCount"></span></button><button data-tab="inventory" onclick="tab('inventory',this)">Inventory</button><button data-tab="settings" onclick="tab('settings',this)">Settings</button></div>
+ <div class="tabs"><button class="active" data-tab="overview" onclick="tab('overview',this)">Overview</button><button data-tab="finance" onclick="tab('finance',this)">Sales & Expenses</button><button data-tab="tasks" onclick="tab('tasks',this)">Tasks</button><button data-tab="workorders" onclick="tab('workorders',this)">Work Orders</button><button data-tab="notifications" onclick="tab('notifications',this)">Notifications <span id="notifCount"></span></button><button data-tab="inventory" onclick="tab('inventory',this)">Inventory</button><button id="employeeTabButton" data-tab="employees" onclick="tab('employees',this)" class="hidden">Employee Management</button><button data-tab="settings" onclick="tab('settings',this)">Settings</button></div>
  <section id="overview" class="page">
   <div class="grid"><div class="panel"><div class="muted tiny">Sales</div><div class="metric" id="salesMetric">$0</div></div><div class="panel"><div class="muted tiny">Expenses</div><div class="metric" id="expenseMetric">$0</div></div><div class="panel"><div class="muted tiny">Net balance</div><div class="metric" id="netMetric">$0</div></div><div class="panel"><div class="muted tiny">Open tasks</div><div class="metric" id="taskMetric">0</div></div></div>
   <div class="panel"><div class="top"><h3>BIZMIND AI Assistant</h3><span class="pill">Local AI · ₹0 API cost</span></div><p class="muted tiny">Local mode sends your workspace summary to Ollama running on this PC. It does not use OpenAI API. Exact financial totals are calculated by the software, not guessed by AI. Hypothetical questions do not change saved records.</p><label>AI Mode</label><select id="aiMode"><option value="local">Local Ollama (free)</option><option value="cloud">Supabase AI backend (may cost money)</option></select><div class="formrow"><div><input id="command" placeholder="Ask BIZMIND AI anything about your business…" onkeydown="if(event.key==='Enter')runCommand()"></div><button id="runAiButton" onclick="runCommand()">Ask AI</button></div><div id="commandResult" class="status">Local AI ready to test. Keep Ollama running on this PC.</div></div>
@@ -71,7 +71,19 @@ input,select{width:100%;padding:11px;background:#0b1529;border:1px solid var(--l
  </section>
  <section id="notifications" class="page hidden"><div class="panel"><h3>System Notifications</h3><p class="muted tiny">In-app notifications only. No SMS or email charges.</p><div id="notificationList"></div></div></section>
  <section id="inventory" class="page hidden"><div class="panel"><h3>Add inventory item</h3><label>Product name</label><input id="productName" placeholder="Product"><div class="row"><div><label>Quantity</label><input id="quantity" type="number" min="0" value="0"></div><div><label>Minimum quantity</label><input id="minimum" type="number" min="0" value="5"></div></div><button style="margin-top:13px" onclick="addInventory()">Save item to cloud</button></div><div class="panel"><h3>Inventory</h3><div id="inventoryTable"></div></div></section>
- <section id="settings" class="page hidden"><div class="panel"><h3>Workspace settings</h3><p class="muted">Company: <b id="settingsCompany"></b></p><p class="muted">Currency: <b id="settingsCurrency"></b></p><p class="muted tiny">To change workspace details, use Supabase dashboard for now. Work Order roles: Boss, HR and Staff. Apply the supplied SQL setup and add team members before using team workflows.</p><button class="alt" onclick="refreshAll()">Refresh cloud data</button><button class="danger" onclick="signOut()">Sign out</button></div></section>
+ <section id="settings" class="page hidden"><div class="panel"><h3>Workspace settings</h3><p class="muted">Company: <b id="settingsCompany"></b></p><p class="muted">Currency: <b id="settingsCurrency"></b></p><p class="muted tiny">Employee accounts are created by the Boss from Employee Management. Work Order roles: Boss, HR and Staff.</p><button class="alt" onclick="refreshAll()">Refresh cloud data</button><button class="danger" onclick="signOut()">Sign out</button></div></section>
+ <section id="employees" class="page hidden">
+  <div class="panel">
+   <h3>Employee Management</h3>
+   <p class="muted tiny">Boss only · Create HR and Staff login accounts for this company. Employee ID must be unique within this company.</p>
+   <div class="row"><div><label>Employee full name</label><input id="employeeFullName" placeholder="Employee full name" autocomplete="off"></div><div><label>Employee ID</label><input id="employeeId" placeholder="e.g. HR001 or STF001" autocomplete="off"></div></div>
+   <div class="row"><div><label>Email address</label><input id="employeeEmail" type="email" placeholder="employee@company.com" autocomplete="off"></div><div><label>Role</label><select id="employeeRole"><option value="hr">HR</option><option value="staff">Staff</option></select></div></div>
+   <label>Temporary password (minimum 8 characters)</label><input id="employeePassword" type="password" minlength="8" placeholder="Create a strong password" autocomplete="new-password">
+   <button style="margin-top:13px" onclick="createEmployee()">Create Employee Account</button>
+   <div id="employeeMsg" class="status">New employee will use this email and password on the same BIZMIND AI Login page.</div>
+  </div>
+  <div class="panel"><div class="top"><h3>Company Employees</h3><button class="alt" onclick="refreshAll()">Refresh employees</button></div><div id="employeeTable"></div></div>
+ </section>
 </div>
 <div class="toast" id="toast"></div>
 </div>
@@ -91,12 +103,7 @@ async function signIn(){try{let {data,error}=await client.auth.signInWithPasswor
 async function sendPasswordReset(){try{if(!client)throw Error('Project is not connected.');const email=$('email').value.trim();if(!email)throw Error('Enter your registered email address first.');const redirectTo=window.location.origin+window.location.pathname;const {error}=await client.auth.resetPasswordForEmail(email,{redirectTo});if(error)throw error;msg('authMsg','Password reset link sent. Check your email inbox and spam folder.','ok')}catch(e){msg('authMsg',e.message,'err')}}
 async function updatePassword(){try{const p=$('newPassword').value, c=$('confirmPassword').value;if(p.length<8)throw Error('Password must be at least 8 characters.');if(p!==c)throw Error('Passwords do not match.');const {error}=await client.auth.updateUser({password:p});if(error)throw error;msg('recoveryMsg','Password updated successfully. You can now log in with your new password.','ok');$('newPassword').value='';$('confirmPassword').value='';setTimeout(()=>show('auth'),1800)}catch(e){msg('recoveryMsg',e.message,'err')}}
 async function signOut(){if(client)await client.auth.signOut();user=null;company=null;show('auth')}
-async function loadWorkspace(){try{let {data:owned,error:ownerErr}=await client.from('companies').select('*').eq('owner_id',user.id).limit(1);if(ownerErr)throw ownerErr;if(owned.length){company=owned[0];myRole='boss'}else{let {data:membership,error:memberErr}=await client.from('company_members').select('company_id,role').eq('user_id',user.id).limit(1);if(memberErr)throw memberErr;if(!membership.length){show('waitingAccess');return}myRole=membership[0].role;let {data:co,error:coErr}=await client.from('companies').select('*').eq('id',membership[0].company_id).single();if(coErr)throw coErr;company=co} $('companyLabel').textContent=company.company_name;$('userLabel').textContent=(user.email||'')+' · '+String(myRole||'member').toUpperCase();$('settingsCompany').textContent=company.company_name;$('settingsCurrency').textContent=company.currency;applyRoleAccess();show('app');await refreshAll()}catch(e){show('auth');msg('authMsg','Workspace loading failed: '+e.message,'err')}}
-function applyRoleAccess(){
- const allowed={boss:['overview','finance','tasks','workorders','notifications','inventory','settings'],hr:['workorders','notifications','settings'],staff:['workorders','notifications','settings']};
- document.querySelectorAll('.tabs button[data-tab]').forEach(b=>{b.classList.toggle('hidden',!(allowed[myRole]||[]).includes(b.dataset.tab));});
- const first=(allowed[myRole]||['workorders'])[0];tab(first,document.querySelector('.tabs button[data-tab="'+first+'"]'));
-}
+async function loadWorkspace(){try{let {data:owned,error:ownerErr}=await client.from('companies').select('*').eq('owner_id',user.id).limit(1);if(ownerErr)throw ownerErr;if(owned.length){company=owned[0];myRole='boss'}else{let {data:membership,error:memberErr}=await client.from('company_members').select('company_id,role').eq('user_id',user.id).limit(1);if(memberErr)throw memberErr;if(!membership.length){show('waitingAccess');return}myRole=membership[0].role;let {data:co,error:coErr}=await client.from('companies').select('*').eq('id',membership[0].company_id).single();if(coErr)throw coErr;company=co} $('companyLabel').textContent=company.company_name;$('userLabel').textContent=(user.email||'')+' · '+String(myRole||'member').toUpperCase();$('settingsCompany').textContent=company.company_name;$('settingsCurrency').textContent=company.currency;$('employeeTabButton').classList.toggle('hidden',myRole!=='boss');show('app');await refreshAll()}catch(e){show('auth');msg('authMsg','Workspace loading failed: '+e.message,'err')}}
 async function createCompany(){try{let name=$('newCompany').value.trim();if(!name)throw Error('Enter a company name');let {data,error}=await client.from('companies').insert({owner_id:user.id,company_name:name,country:$('newCountry').value.trim()||'India',currency:$('newCurrency').value}).select().single();if(error)throw error;company=data;await loadWorkspace()}catch(e){msg('companyMsg',e.message,'err')}}
 function fmt(n){let c=company?.currency||'USD';try{return new Intl.NumberFormat(undefined,{style:'currency',currency:c}).format(Number(n||0))}catch{return c+' '+Number(n||0).toFixed(2)}}
 function exactFinanceAnswer(question,sales,expenses){
@@ -120,7 +127,7 @@ async function refreshAll(){try{
  if(isBoss)requests.unshift(client.from('transactions').select('*').eq('company_id',company.id).order('created_at',{ascending:false}),client.from('tasks').select('*').eq('company_id',company.id).order('created_at',{ascending:false}),client.from('inventory').select('*').eq('company_id',company.id).order('created_at',{ascending:false}));
  const results=await Promise.all(requests);for(const x of results)if(x.error)throw x.error;
  if(isBoss){transactions=results[0].data;tasks=results[1].data;inventory=results[2].data;members=results[3].data;workOrders=results[4].data;notifications=results[5].data;render()}else{transactions=[];tasks=[];inventory=[];members=results[0].data;workOrders=results[1].data;notifications=results[2].data;}
- renderWorkOrders();renderNotifications();toast('Cloud data refreshed');
+ renderWorkOrders();renderNotifications();renderEmployees();toast('Cloud data refreshed');
  }catch(e){toast('Load error: '+e.message+' — check Work Order SQL policies.')}}
 function render(){let sales=transactions.filter(x=>x.type==='sale').reduce((s,x)=>s+Number(x.amount),0),expenses=transactions.filter(x=>x.type==='expense').reduce((s,x)=>s+Number(x.amount),0);$('salesMetric').textContent=fmt(sales);$('expenseMetric').textContent=fmt(expenses);$('netMetric').textContent=fmt(sales-expenses);$('taskMetric').textContent=tasks.filter(x=>!x.is_completed).length;
 $('recent').innerHTML=table(transactions.slice(0,5).map(x=>`<tr><td>${esc(x.transaction_date)}</td><td>${esc(x.description)}</td><td>${esc(x.type)}</td><td>${fmt(x.amount)}</td></tr>`),['Date','Description','Type','Amount']);
@@ -131,6 +138,34 @@ let low=inventory.filter(x=>x.quantity<=x.minimum_quantity);$('alerts').innerHTM
 }
 function memberName(id){const m=members.find(x=>x.user_id===id);return m?(m.full_name||m.email||id):'Not assigned'}
 function fillMemberSelect(id,role){const el=$(id);if(!el)return;const list=members.filter(m=>m.role===role);el.innerHTML='<option value="">Select '+role.toUpperCase()+'</option>'+list.map(m=>`<option value="${esc(m.user_id)}">${esc(m.full_name||m.email||m.user_id)}</option>`).join('')}
+function renderEmployees(){
+ const box=$('employeeTable');if(!box)return;
+ if(myRole!=='boss'){box.innerHTML='<div class="empty">Boss access only.</div>';return;}
+ const rows=members.map(m=>`<tr><td>${esc(m.employee_id||'—')}</td><td>${esc(m.full_name||'—')}</td><td>${esc(m.email||'—')}</td><td>${esc(String(m.role||'').toUpperCase())}</td><td>${esc(m.created_at?new Date(m.created_at).toLocaleDateString():'—')}</td></tr>`);
+ box.innerHTML=table(rows,['Employee ID','Name','Email','Role','Created']);
+}
+async function createEmployee(){
+ try{
+  if(myRole!=='boss')throw Error('Only the company Boss can create employee accounts.');
+  const full_name=$('employeeFullName').value.trim();
+  const employee_id=$('employeeId').value.trim();
+  const email=$('employeeEmail').value.trim().toLowerCase();
+  const role=$('employeeRole').value;
+  const password=$('employeePassword').value;
+  if(!full_name||!employee_id||!email||!password)throw Error('Fill all fields.');
+  if(password.length<8)throw Error('Password must be at least 8 characters.');
+  const button=document.querySelector('#employees button[onclick="createEmployee()"]');
+  button.disabled=true;button.textContent='Creating account…';
+  msg('employeeMsg','Creating secure employee account…');
+  const {data,error}=await client.functions.invoke('bizmind-create-employee',{body:{full_name,employee_id,email,role,password}});
+  if(error){let detail='';try{detail=await error.context.json().then(x=>x.error||JSON.stringify(x));}catch{}throw new Error(detail||error.message||'Employee creation failed.');}
+  if(!data?.success)throw new Error(data?.error||'Employee account was not created.');
+  $('employeeFullName').value='';$('employeeId').value='';$('employeeEmail').value='';$('employeePassword').value='';
+  msg('employeeMsg',`Account created: ${data.employee_id} (${String(data.role).toUpperCase()}). Employee can now sign in with the email and password.`, 'ok');
+  await refreshAll();
+ }catch(e){msg('employeeMsg',e.message||String(e),'err');}
+ finally{const button=document.querySelector('#employees button[onclick="createEmployee()"]');if(button){button.disabled=false;button.textContent='Create Employee Account';}}
+}
 function renderWorkOrders(){
  $('bossOrderForm').classList.toggle('hidden',myRole!=='boss');$('hrForwardForm').classList.toggle('hidden',myRole!=='hr');$('staffUpdateForm').classList.toggle('hidden',myRole!=='staff');
  fillMemberSelect('woHr','hr');fillMemberSelect('hrStaff','staff');
