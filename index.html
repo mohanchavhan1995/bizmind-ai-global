@@ -275,7 +275,7 @@ async function saveBossWorkOrderEdit(id){try{
  const button=$('edit-save-'+id);if(button){button.disabled=true;button.textContent='Translating & saving…';}
  const translated=await translateFields({title,details},language);
  const update={title,details,original_title:title,original_details:details,translated_title:translated.title,translated_details:translated.details,work_language:language,priority:$('edit-priority-'+id).value,start_date:$('edit-start-'+id).value||null,due_date:$('edit-due-'+id).value||null};
- const {error}=await client.from('work_orders').update(update).eq('id',id).eq('company_id',company.id).eq('created_by',user.id);if(error)throw error;
+ const {data:savedRow,error}=await client.from('work_orders').update(update).eq('id',id).eq('company_id',company.id).eq('created_by',user.id).select('id').maybeSingle();if(error)throw error;if(!savedRow)throw Error('Work Order update झाले नाही. Supabase RLS permission किंवा Boss ownership policy तपासावी लागेल.');
  const revisedMessage=`REVISED WORK ORDER — Please follow this latest version.\nOrder: ${w.order_code}\nTitle (${language}): ${translated.title}\nDetails (${language}): ${translated.details||'No extra details'}\nPriority: ${update.priority}\nStart date: ${update.start_date||'Not set'}\nDeadline: ${update.due_date||'Not set'}`;
  if(w.assigned_hr)await notifyUser(w.assigned_hr,'Revised Work Order: '+w.order_code,revisedMessage,id);
  if(w.assigned_staff&&w.status==='assigned_to_staff')await notifyUser(w.assigned_staff,'Revised Work Order: '+w.order_code,revisedMessage,id);
