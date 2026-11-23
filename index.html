@@ -115,14 +115,12 @@ async function signIn(){try{let {data,error}=await client.auth.signInWithPasswor
 async function sendPasswordReset(){try{if(!client)throw Error('Project is not connected.');const email=$('email').value.trim();if(!email)throw Error('Enter your registered email address first.');const redirectTo=window.location.origin+window.location.pathname;const {error}=await client.auth.resetPasswordForEmail(email,{redirectTo});if(error)throw error;msg('authMsg','Password reset link sent. Check your email inbox and spam folder.','ok')}catch(e){msg('authMsg',e.message,'err')}}
 async function updatePassword(){try{const p=$('newPassword').value, c=$('confirmPassword').value;if(p.length<8)throw Error('Password must be at least 8 characters.');if(p!==c)throw Error('Passwords do not match.');const {error}=await client.auth.updateUser({password:p});if(error)throw error;msg('recoveryMsg','Password updated successfully. You can now log in with your new password.','ok');$('newPassword').value='';$('confirmPassword').value='';setTimeout(()=>show('auth'),1800)}catch(e){msg('recoveryMsg',e.message,'err')}}
 async function signOut(){await stopPresence();if(client)await client.auth.signOut();user=null;company=null;show('auth')}
-async function loadWorkspace(){try{let {data:owned,error:ownerErr}=await client.from('companies').select('*').eq('owner_id',user.id).limit(1);if(ownerErr)throw ownerErr;if(owned.length){company=owned[0];myRole='boss'}else{let {data:membership,error:memberErr}=await client.from('company_members').select('company_id,role,status').eq('user_id',user.id).limit(1);if(memberErr)throw memberErr;if(!membership.length){
-  show('companySetup');
-  msg('companyMsg',
-    'Welcome to BIZMIND AI! Enter your company details and create your independent workspace.',
-    'ok'
-  );
-  return;
-}if(membership[0].status==='pending'||membership[0].status==='rejected'){show('waitingAccess');const p=$('waitingAccess').querySelector('p');p.textContent=membership[0].status==='pending'?'Your employee request is waiting for Boss approval. You can sign in after approval.':'Your employee request was not approved. Please contact your company Boss.';return}myRole=membership[0].role;let {data:co,error:coErr}=await client.from('companies').select('*').eq('id',membership[0].company_id).single();if(coErr)throw coErr;company=co} $('companyLabel').textContent=company.company_name;$('userLabel').textContent=(user.email||'')+' · '+String(myRole||'member').toUpperCase();$('settingsCompany').textContent=company.company_name;$('settingsCurrency').textContent=company.currency;$('employeeTabButton').classList.toggle('hidden',!['boss','hr'].includes(myRole));$('bossEmployeeCreate').classList.toggle('hidden',myRole!=='boss');$('hrEmployeeCreate').classList.toggle('hidden',myRole!=='hr');$('bossApprovalPanel').classList.toggle('hidden',myRole!=='boss');show('app');await refreshAll();await startPresence()}catch(e){show('auth');msg('authMsg','Workspace loading failed: '+e.message,'err')}}
+async function loadWorkspace(){try{let {data:owned,error:ownerErr}=await client.from('companies').select('*').eq('owner_id',user.id).limit(1);if(ownerErr)throw ownerErr;if(owned.length){company=owned[0];myRole='boss'}else{let {data:membership,error:memberErr}=await client.from('company_members').select('company_id,role,status').eq('user_id',user.id).limit(1);if(memberErr)throw memberErr;if(!membership.length){myRole='boss';show('companySetup');msg('companyMsg','No company workspace is linked to this account yet. Create your company to continue.','ok');return}if(membership[0].status==='pending'||membership[0].status==='rejected'){show('waitingAccess');const p=$('waitingAccess').querySelector('p');p.textContent=membership[0].status==='pending'?'Your employee request is waiting for Boss approval. You can sign in after approval.':'Your employee request was not approved. Please contact your company Boss.';return}myRole=membership[0].role;let {data:co,error:coErr}=await client.from('companies').select('*').eq('id',membership[0].company_id).single();if(coErr)throw coErr;company=co} $('companyLabel').textContent=company.company_name;$('userLabel').textContent=(user.email||'')+' · '+String(myRole||'member').toUpperCase();$('settingsCompany').textContent=company.company_name;$('settingsCurrency').textContent=company.currency;$('employeeTabButton').classList.toggle('hidden',!['boss','hr'].includes(myRole));
+  const financeTab=document.querySelector('[data-tab="finance"]');if(financeTab)financeTab.classList.toggle('hidden',myRole==='staff');
+  const financeForm=document.querySelector('#finance .panel');if(financeForm)financeForm.classList.toggle('hidden',myRole!=='boss');
+  const taskForm=document.querySelector('#tasks .panel');if(taskForm)taskForm.classList.toggle('hidden',!['boss','hr'].includes(myRole));
+  const inventoryForm=document.querySelector('#inventory .panel');if(inventoryForm)inventoryForm.classList.toggle('hidden',!['boss','hr','staff'].includes(myRole));
+  $('bossEmployeeCreate').classList.toggle('hidden',myRole!=='boss');$('hrEmployeeCreate').classList.toggle('hidden',myRole!=='hr');$('bossApprovalPanel').classList.toggle('hidden',myRole!=='boss');show('app');await refreshAll();await startPresence()}catch(e){show('auth');msg('authMsg','Workspace loading failed: '+e.message,'err')}}
 async function createCompany(){try{let name=$('newCompany').value.trim();if(!name)throw Error('Enter a company name');let {data,error}=await client.from('companies').insert({owner_id:user.id,company_name:name,country:$('newCountry').value.trim()||'India',currency:$('newCurrency').value}).select().single();if(error)throw error;company=data;await loadWorkspace()}catch(e){msg('companyMsg',e.message,'err')}}
 function fmt(n){let c=company?.currency||'USD';try{return new Intl.NumberFormat(undefined,{style:'currency',currency:c}).format(Number(n||0))}catch{return c+' '+Number(n||0).toFixed(2)}}
 function exactFinanceAnswer(question,sales,expenses){
@@ -141,80 +139,43 @@ function exactFinanceAnswer(question,sales,expenses){
 function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function table(rows,headers){if(!rows.length)return '<div class="empty">No records yet.</div>';return '<div style="overflow:auto"><table><thead><tr>'+headers.map(h=>'<th>'+h+'</th>').join('')+'</tr></thead><tbody>'+rows.join('')+'</tbody></table></div>'}
 async function refreshAll(){try{
-async function refreshAll(){
-  try {
-    const isBoss = myRole === 'boss';
-    const isHR = myRole === 'hr';
-
-    const requests = [
-      client.from('company_members')
-        .select('*')
-        .eq('company_id', company.id),
-
-      client.from('work_orders')
-        .select('*')
-        .eq('company_id', company.id)
-        .order('created_at', {ascending:false}),
-
-      client.from('app_notifications')
-        .select('*')
-        .eq('company_id', company.id)
-        .eq('recipient_user_id', user.id)
-        .order('created_at', {ascending:false})
-        .limit(50),
-
-      client.from('tasks')
-        .select('*')
-        .eq('company_id', company.id)
-        .order('created_at', {ascending:false}),
-
-      client.from('inventory')
-        .select('*')
-        .eq('company_id', company.id)
-        .order('created_at', {ascending:false})
-    ];
-
-    if(isBoss || isHR){
-      requests.unshift(
-        client.from('transactions')
-          .select('*')
-          .eq('company_id', company.id)
-          .order('created_at', {ascending:false})
-      );
-    }
-
-    const results = await Promise.all(requests);
-
-    for(const result of results){
-      if(result.error) throw result.error;
-    }
-
-    let i = 0;
-
-    if(isBoss || isHR){
-      transactions = results[i++].data || [];
-    } else {
-      transactions = [];
-    }
-
-    members = results[i++].data || [];
-    workOrders = results[i++].data || [];
-    notifications = results[i++].data || [];
-    tasks = results[i++].data || [];
-    inventory = results[i++].data || [];
-
-    render();
-    renderWorkOrders();
-    renderNotifications();
-    renderEmployees();
-
-    toast('Cloud data refreshed');
-
-  } catch(e) {
-    toast('Load error: ' + e.message);
-  }
+  if(!client||!company||!user)throw Error('Project or company workspace is not connected.');
+  const isBoss=myRole==='boss',canViewFinance=['boss','hr'].includes(myRole);
+  const requests=[
+    client.from('company_members').select('*').eq('company_id',company.id),
+    client.from('work_orders').select('*').eq('company_id',company.id).order('created_at',{ascending:false}),
+    client.from('app_notifications').select('*').eq('company_id',company.id).eq('recipient_user_id',user.id).order('created_at',{ascending:false}).limit(50),
+    client.from('tasks').select('*').eq('company_id',company.id).order('created_at',{ascending:false}),
+    client.from('inventory').select('*').eq('company_id',company.id).order('created_at',{ascending:false})
+  ];
+  if(canViewFinance)requests.push(client.from('transactions').select('*').eq('company_id',company.id).order('created_at',{ascending:false}));
+  const results=await Promise.all(requests);
+  for(const x of results)if(x.error)throw x.error;
+  members=results[0].data||[];
+  workOrders=results[1].data||[];
+  notifications=results[2].data||[];
+  tasks=results[3].data||[];
+  inventory=results[4].data||[];
+  transactions=canViewFinance?(results[5].data||[]):[];
+  render();renderWorkOrders();renderNotifications();renderEmployees();
+  toast('Cloud data refreshed');
+  }catch(e){toast('Load error: '+e.message+' — check company membership and table RLS policies.')}
 }
-
+function render(){let sales=transactions.filter(x=>x.type==='sale').reduce((s,x)=>s+Number(x.amount),0),expenses=transactions.filter(x=>x.type==='expense').reduce((s,x)=>s+Number(x.amount),0);$('salesMetric').textContent=myRole==='staff'?'—':fmt(sales);$('expenseMetric').textContent=myRole==='staff'?'—':fmt(expenses);$('netMetric').textContent=myRole==='staff'?'—':fmt(sales-expenses);$('taskMetric').textContent=tasks.filter(x=>!x.is_completed).length;
+$('recent').innerHTML=table(transactions.slice(0,5).map(x=>`<tr><td>${esc(x.transaction_date)}</td><td>${esc(x.description)}</td><td>${esc(x.type)}</td><td>${fmt(x.amount)}</td></tr>`),['Date','Description','Type','Amount']);
+$('txTable').innerHTML=table(transactions.map(x=>`<tr><td>${esc(x.transaction_date)}</td><td>${esc(x.description)}</td><td>${esc(x.type)}</td><td>${fmt(x.amount)}</td></tr>`),['Date','Description','Type','Amount']);
+$('taskTable').innerHTML=tasks.length?tasks.map(x=>`<div class="top" style="padding:10px 0;border-bottom:1px solid var(--line)"><div><b>${esc(x.title)}</b><div class="muted tiny">Due: ${esc(x.due_date||'Not set')}</div></div><button class="alt" onclick="toggleTask('${x.id}',${!x.is_completed})">${x.is_completed?'Reopen':'Complete'}</button></div>`).join(''):'<div class="empty">No tasks yet.</div>';
+$('inventoryTable').innerHTML=table(inventory.map(x=>`<tr><td>${esc(x.product_name)}</td><td>${x.quantity}</td><td>${x.minimum_quantity}</td><td><span class="pill ${x.quantity<=x.minimum_quantity?'warn':''}">${x.quantity<=x.minimum_quantity?'Low stock':'In stock'}</span></td></tr>`),['Product','Qty','Minimum','Status']);
+let low=inventory.filter(x=>x.quantity<=x.minimum_quantity);$('alerts').innerHTML=low.length?low.map(x=>`<div>${esc(x.product_name)}: ${x.quantity} remaining <span class="pill warn">Restock</span></div>`).join(''):'No low-stock alerts.';
+}
+function memberName(id){const m=members.find(x=>x.user_id===id);if(m)return m.full_name||m.email||id;if(id&&company&&id===company.owner_id)return 'Company Boss';return id?'Company member':'Not assigned'}
+function renderPresence(){
+ const box=$('onlineTeam');if(!box)return;
+ const people=Object.values(onlineUsers||{}).flat();
+ if(!people.length){box.innerHTML='<div class="empty">No team members currently online, or live presence is not connected.</div>';return;}
+ const unique=[...new Map(people.map(p=>[p.user_id,p])).values()];
+ box.innerHTML=unique.map(p=>`<div class="top" style="padding:8px 0;border-bottom:1px solid var(--line)"><div><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#45d6a5;margin-right:8px"></span><b>${esc(p.full_name||p.email||'Team member')}</b><div class="muted tiny">${esc(String(p.role||'member').toUpperCase())}${p.employee_id?' · ID '+esc(p.employee_id):''}</div></div><span class="pill">ONLINE</span></div>`).join('');
+}
 async function startPresence(){
  try{
   if(!client||!company||!user)return;
@@ -264,7 +225,7 @@ async function createEmployee(){
   const button=document.querySelector(isHR?'#hrEmployeeCreate button[onclick="createEmployee()"]':'#bossEmployeeCreate button[onclick="createEmployee()"]');
   button.disabled=true;button.textContent=isHR?'Sending request…':'Creating account…';
   msg(msgId,isHR?'Sending Staff request for Boss approval…':'Creating secure employee account…');
-  const {data,error}=await client.functions.invoke('bizmind-create-employee',{body:{full_name,employee_id,email,role,password,requested_by_role:myRole}});
+  const {data,error}=await client.functions.invoke('bizmind-create-employee',{body:{company_id:company.id,full_name,employee_id,email,role,password,requested_by_role:myRole}});
   if(error){let detail='';try{detail=await error.context.json().then(x=>x.error||JSON.stringify(x));}catch{}throw new Error(detail||error.message||'Employee creation failed.');}
   if(!data?.success)throw new Error(data?.error||'Employee account was not created.');
   $(prefix+'FullName').value='';$(prefix+'Id').value='';$(prefix+'Email').value='';$(prefix+'Password').value='';
@@ -302,7 +263,7 @@ async function translateFields(fields,targetLanguage){
  if(String(targetLanguage||'English').toLowerCase()==='other / custom')throw new Error('Please choose a supported target language.');
  const payload=Object.fromEntries(entries);
  const prompt='You are a professional business translator. Detect the source language automatically for each value. Translate every value into '+targetLanguage+'. Preserve names, numbers, dates, order IDs, product codes, URLs and formatting. Do not summarize, explain, or add content. Return ONLY valid JSON with exactly the same keys and translated string values. Source JSON: '+JSON.stringify(payload);
- const {data,error}=await client.functions.invoke('bizmind-ai-assistant',{body:{message:prompt}});
+ const {data,error}=await client.functions.invoke('bizmind-ai-assistant',{body:{company_id:company.id,message:prompt}});
  if(error){let detail='';try{detail=await error.context.json().then(x=>x.error||JSON.stringify(x));}catch{}throw new Error(detail||error.message||'Translation service failed');}
  const answer=String(data?.answer||'').trim();
  if(!answer)throw new Error(data?.error||'Translation service returned an empty answer.');
@@ -384,10 +345,10 @@ async function approveWork(id){try{
  if(w.assigned_staff)await notifyUser(w.assigned_staff,'Work approved: '+w.order_code,message,id);
  await refreshAll();toast('Boss final approval saved');
  }catch(e){toast(e.message)}}
-async function addTransaction(){try{let amount=Number($('txAmount').value),desc=$('txDesc').value.trim();if(!(amount>0)||!desc)throw Error('Enter a valid amount and description');let {error}=await client.from('transactions').insert({company_id:company.id,type:$('txType').value,amount,description:desc,transaction_date:$('txDate').value||new Date().toISOString().slice(0,10)});if(error)throw error;$('txAmount').value='';$('txDesc').value='';await refreshAll();toast('Transaction saved to cloud')}catch(e){toast(e.message)}}
-async function addTask(){try{let title=$('taskTitle').value.trim();if(!title)throw Error('Enter a task title');let {error}=await client.from('tasks').insert({company_id:company.id,title,due_date:$('taskDue').value||null});if(error)throw error;$('taskTitle').value='';await refreshAll();toast('Task saved to cloud')}catch(e){toast(e.message)}}
-async function toggleTask(id,value){let {error}=await client.from('tasks').update({is_completed:value}).eq('id',id).eq('company_id',company.id);if(error)toast(error.message);else await refreshAll()}
-async function addInventory(){try{let name=$('productName').value.trim(),quantity=Number($('quantity').value),minimum=Number($('minimum').value);if(!name||quantity<0||minimum<0)throw Error('Enter valid inventory details');let {error}=await client.from('inventory').insert({company_id:company.id,product_name:name,quantity,minimum_quantity:minimum});if(error)throw error;$('productName').value='';await refreshAll();toast('Inventory saved to cloud')}catch(e){toast(e.message)}}
+async function addTransaction(){try{if(myRole!=='boss')throw Error('Only Boss can add financial transactions.');let amount=Number($('txAmount').value),desc=$('txDesc').value.trim();if(!(amount>0)||!desc)throw Error('Enter a valid amount and description');let {error}=await client.from('transactions').insert({company_id:company.id,type:$('txType').value,amount,description:desc,transaction_date:$('txDate').value||new Date().toISOString().slice(0,10)});if(error)throw error;$('txAmount').value='';$('txDesc').value='';await refreshAll();toast('Transaction saved to cloud')}catch(e){toast(e.message)}}
+async function addTask(){try{if(!['boss','hr'].includes(myRole))throw Error('Only Boss or HR can create tasks.');let title=$('taskTitle').value.trim();if(!title)throw Error('Enter a task title');let {error}=await client.from('tasks').insert({company_id:company.id,title,due_date:$('taskDue').value||null});if(error)throw error;$('taskTitle').value='';await refreshAll();toast('Task saved to cloud')}catch(e){toast(e.message)}}
+async function toggleTask(id,value){if(!['boss','hr','staff'].includes(myRole)){toast('You do not have permission to update tasks.');return}let {error}=await client.from('tasks').update({is_completed:value}).eq('id',id).eq('company_id',company.id);if(error)toast(error.message);else await refreshAll()}
+async function addInventory(){try{if(!['boss','hr','staff'].includes(myRole))throw Error('You do not have permission to add inventory.');let name=$('productName').value.trim(),quantity=Number($('quantity').value),minimum=Number($('minimum').value);if(!name||quantity<0||minimum<0)throw Error('Enter valid inventory details');let {error}=await client.from('inventory').insert({company_id:company.id,product_name:name,quantity,minimum_quantity:minimum});if(error)throw error;$('productName').value='';await refreshAll();toast('Inventory saved to cloud')}catch(e){toast(e.message)}}
 async function runCommand(){
  const question=$('command').value.trim();
  if(!question){$('commandResult').textContent='Please type a question first.';return;}
@@ -409,7 +370,7 @@ async function runCommand(){
     if(!data.message?.content)throw new Error('Local AI returned an empty answer.');
     $('commandResult').textContent=data.message.content;
   }else{
-    const {data,error}=await client.functions.invoke('bizmind-ai-assistant',{body:{message:prompt}});
+    const {data,error}=await client.functions.invoke('bizmind-ai-assistant',{body:{company_id:company.id,message:prompt}});
     if(error){let detail='';try{detail=await error.context.json().then(x=>x.error||JSON.stringify(x));}catch{}throw new Error(detail||error.message||'AI request failed');}
     if(!data||!data.answer)throw new Error(data?.error||'The AI returned an empty response.');
     $('commandResult').textContent=data.answer;
@@ -422,6 +383,6 @@ async function runCommand(){
 function tab(id,btn){document.querySelectorAll('.page').forEach(x=>x.classList.add('hidden'));$(id).classList.remove('hidden');document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));if(btn)btn.classList.add('active')}
 $('txDate').value=new Date().toISOString().slice(0,10);
 document.querySelectorAll('input[type="date"]').forEach(el=>{el.addEventListener('click',()=>{if(typeof el.showPicker==='function'){try{el.showPicker()}catch{}}});});
-(async function init(){let c=config();if(c.url&&c.key&&window.supabase){$('projectUrl').value=c.url;$('publishKey').value=c.key;client=window.supabase.createClient(c.url,c.key);$('topStatus').textContent='Saved project settings found';try{const hash=new URLSearchParams(window.location.hash.replace(/^#/,' '));const query=new URLSearchParams(window.location.search);await checkSession();if(hash.get('type')==='recovery'||query.get('type')==='recovery'){show('recovery');msg('recoveryMsg','Enter and confirm your new password.','ok')}}catch(e){show('setup');msg('setupMsg','Connection error: '+e.message,'err')}}else show('setup')})();
+(async function init(){let c=config();if(c.url&&c.key&&window.supabase){$('projectUrl').value=c.url;$('publishKey').value=c.key;client=window.supabase.createClient(c.url,c.key);$('topStatus').textContent='Saved project settings found';try{const hash=new URLSearchParams(window.location.hash.replace(/^#/,''));const query=new URLSearchParams(window.location.search);await checkSession();if(hash.get('type')==='recovery'||query.get('type')==='recovery'){show('recovery');msg('recoveryMsg','Enter and confirm your new password.','ok')}}catch(e){show('setup');msg('setupMsg','Connection error: '+e.message,'err')}}else show('setup')})();
 </script>
 </body></html>
