@@ -263,7 +263,7 @@ async function translateFields(fields,targetLanguage){
  if(String(targetLanguage||'English').toLowerCase()==='other / custom')throw new Error('Please choose a supported target language.');
  const payload=Object.fromEntries(entries);
  const prompt='You are a professional business translator. Detect the source language automatically for each value. Translate every value into '+targetLanguage+'. Preserve names, numbers, dates, order IDs, product codes, URLs and formatting. Do not summarize, explain, or add content. Return ONLY valid JSON with exactly the same keys and translated string values. Source JSON: '+JSON.stringify(payload);
- const {data,error}=await client.functions.invoke('bizmind-ai-assistant',{body:{company_id:company.id,message:prompt}});
+ const {data,error}=await client.functions.invoke('bizmind-ai-assistant',{body:{company_id:company.id,message:question}});
  if(error){let detail='';try{detail=await error.context.json().then(x=>x.error||JSON.stringify(x));}catch{}throw new Error(detail||error.message||'Translation service failed');}
  const answer=String(data?.answer||'').trim();
  if(!answer)throw new Error(data?.error||'Translation service returned an empty answer.');
@@ -347,7 +347,7 @@ async function approveWork(id){try{
  }catch(e){toast(e.message)}}
 async function addTransaction(){try{if(myRole!=='boss')throw Error('Only Boss can add financial transactions.');let amount=Number($('txAmount').value),desc=$('txDesc').value.trim();if(!(amount>0)||!desc)throw Error('Enter a valid amount and description');let {error}=await client.from('transactions').insert({company_id:company.id,type:$('txType').value,amount,description:desc,transaction_date:$('txDate').value||new Date().toISOString().slice(0,10)});if(error)throw error;$('txAmount').value='';$('txDesc').value='';await refreshAll();toast('Transaction saved to cloud')}catch(e){toast(e.message)}}
 async function addTask(){try{if(!['boss','hr'].includes(myRole))throw Error('Only Boss or HR can create tasks.');let title=$('taskTitle').value.trim();if(!title)throw Error('Enter a task title');let {error}=await client.from('tasks').insert({company_id:company.id,title,due_date:$('taskDue').value||null});if(error)throw error;$('taskTitle').value='';await refreshAll();toast('Task saved to cloud')}catch(e){toast(e.message)}}
-async function toggleTask(id,value){if(!['boss','hr','staff'].includes(myRole)){toast('You do not have permission to update tasks.');return}let {error}=await client.from('tasks').update({is_completed:value}).eq('id',id).eq('company_id',company.id);if(error)toast(error.message);else await refreshAll()}
+async function toggleTask(id,value){if(!['boss','hr'].includes(myRole)){toast('Only Boss or HR can update general tasks. Staff should submit assigned work through Work Orders.');return}let {error}=await client.from('tasks').update({is_completed:value}).eq('id',id).eq('company_id',company.id);if(error)toast(error.message);else await refreshAll()}
 async function addInventory(){try{if(!['boss','hr','staff'].includes(myRole))throw Error('You do not have permission to add inventory.');let name=$('productName').value.trim(),quantity=Number($('quantity').value),minimum=Number($('minimum').value);if(!name||quantity<0||minimum<0)throw Error('Enter valid inventory details');let {error}=await client.from('inventory').insert({company_id:company.id,product_name:name,quantity,minimum_quantity:minimum});if(error)throw error;$('productName').value='';await refreshAll();toast('Inventory saved to cloud')}catch(e){toast(e.message)}}
 async function runCommand(){
  const question=$('command').value.trim();
@@ -370,7 +370,7 @@ async function runCommand(){
     if(!data.message?.content)throw new Error('Local AI returned an empty answer.');
     $('commandResult').textContent=data.message.content;
   }else{
-    const {data,error}=await client.functions.invoke('bizmind-ai-assistant',{body:{company_id:company.id,message:prompt}});
+    const {data,error}=await client.functions.invoke('bizmind-ai-assistant',{body:{company_id:company.id,message:question}});
     if(error){let detail='';try{detail=await error.context.json().then(x=>x.error||JSON.stringify(x));}catch{}throw new Error(detail||error.message||'AI request failed');}
     if(!data||!data.answer)throw new Error(data?.error||'The AI returned an empty response.');
     $('commandResult').textContent=data.answer;
